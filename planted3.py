@@ -56,8 +56,6 @@ def monte_carlo_count_matchings(n, d, num_samples=10000):
         return 0, planted, noise, set()
 
     conflicts, vertex_to_edges = build_conflict_graph(all_edges)
-
-    # keep unique matchings in a set (duplicates ignored)
     found_matchings = set()
     for _ in range(num_samples):
         matching = sample_random_matching_k3(all_edges, conflicts, vertex_to_edges, L)
