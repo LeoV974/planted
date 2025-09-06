@@ -1,8 +1,8 @@
 import random
-import itertools
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
+import json
 
 def sample_graph_k3(n, d):
     L = list(range(n))
@@ -14,9 +14,8 @@ def sample_graph_k3(n, d):
     for l in L:
         for m in M:
             for r in R:
-                if (l, m, r) not in planted:
-                    if random.random() < p:
-                        noise.add((l, m, r))
+                if (l, m, r) not in planted and random.random() < p:
+                    noise.add((l, m, r))
     return planted, noise, L, M, R
 
 def build_conflict_graph(edge_list):
@@ -36,11 +35,9 @@ def sample_random_matching_k3(edge_list, conflicts, vertex_to_edges, L):
     matching = []
     used_edges = set()
     used_vertices = set()
-
     for l_vertex in L:
         candidates = [i for i in vertex_to_edges[l_vertex]
-                      if i not in used_edges 
-                      and all(v not in used_vertices for v in edge_list[i])]
+                      if i not in used_edges and all(v not in used_vertices for v in edge_list[i])]
         if candidates:
             chosen = random.choice(candidates)
             chosen_edge = edge_list[chosen]
@@ -48,7 +45,6 @@ def sample_random_matching_k3(edge_list, conflicts, vertex_to_edges, L):
             used_edges.add(chosen)
             used_vertices.update(chosen_edge)
             used_edges.update(conflicts[chosen])
-
     if len(matching) == len(L):
         return frozenset(matching)
     return None
@@ -61,47 +57,39 @@ def monte_carlo_count_matchings(n, d, num_samples=10000):
 
     conflicts, vertex_to_edges = build_conflict_graph(all_edges)
 
+    # keep unique matchings in a set (duplicates ignored)
     found_matchings = set()
     for _ in range(num_samples):
         matching = sample_random_matching_k3(all_edges, conflicts, vertex_to_edges, L)
         if matching is not None:
             found_matchings.add(matching)
 
-    unique_found = len(found_matchings)
-
-    if unique_found == 0:
-        estimated_total = 0
-    else:
-        success_rate = sum(
-            1 for _ in range(num_samples)
-            if (m := sample_random_matching_k3(all_edges, conflicts, vertex_to_edges, L))
-                is not None
-        ) / num_samples
-        estimated_total = max(unique_found, int(unique_found / success_rate)) if success_rate > 0 else unique_found
-
-    return estimated_total, planted, noise, found_matchings
+    return len(found_matchings), planted, noise, found_matchings
 
 def analyze_matchings_vs_d(n=10, d_values=None, num_samples=10000, num_trials=100):
     if d_values is None:
-        d_values = [4,5,6,7,8]
-    
+        d_values = [4, 5, 6, 7, 8]
+
     results = []
-    
     print(f"Analyzing n={n} vertices per side...")
     print(f"{'d':<5} {'Avg':<12} {'Std':<12} {'Min':<8} {'Max':<8}")
     print("-" * 50)
 
     for d in d_values:
-        matching_counts = []
+        counts = []
         for _ in range(num_trials):
             count, _, _, _ = monte_carlo_count_matchings(n, d, num_samples)
-            matching_counts.append(count)
-        avg_count = np.mean(matching_counts)
-        std_count = np.std(matching_counts)
-        min_count = np.min(matching_counts)
-        max_count = np.max(matching_counts)
-        results.append((d, avg_count, std_count, min_count, max_count))
-        print(f"{d:<5.1f} {avg_count:<12.1f} {std_count:<12.1f} {min_count:<8} {max_count:<8}")
+            counts.append(count)
+        avg_count = np.mean(counts)
+        std_count = np.std(counts)
+        min_count = np.min(counts)
+        max_count = np.max(counts)
+        results.append((d, float(avg_count), float(std_count), int(min_count), int(max_count)))
+        print(f"{d:<5.1f} {avg_count:<12.1f} {std_count:<12.1f} {min_count:<8d} {max_count:<8d}")
+
+    # Save results to JSON
+    with open("results_k3.json", "w") as f:
+        json.dump(results, f, indent=2)
 
     return results
 
@@ -112,10 +100,11 @@ def plot_results(results):
     plt.figure(figsize=(10, 6))
     plt.errorbar(d_vals, avg_counts, yerr=std_devs, marker='o', capsize=5)
     plt.xlabel('d (noise parameter)')
-    plt.ylabel('Average number of perfect matchings')
-    plt.title('Perfect Matchings vs Noise Parameter d (k=3)')
+    plt.ylabel('Average number of distinct perfect matchings (per trial)')
+    plt.title('Distinct Perfect Matchings vs Noise Parameter d (k=3)')
     plt.grid(True, alpha=0.3)
     plt.yscale('log')
+    plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
