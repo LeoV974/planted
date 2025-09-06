@@ -1,5 +1,4 @@
 import random
-import networkx as nx
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,25 +50,26 @@ def monte_carlo_count_matchings_k2(n, d, num_samples=10000):
     planted, noise, L, R = sample_graph_k2(n, d)
     all_edges = list(planted | noise)
     if len(all_edges) < n:
-        return 0, planted, noise, set()
+        return 0, planted, noise, []
+
     conflicts, vertex_to_edges = build_conflict_graph_k2(all_edges)
-    planted_matching = frozenset((i, i+n) for i in L)
-    found_matchings = set()
-    successes = 0
+    
+    # Keep all sampled matchings, including duplicates and planted
+    sampled_matchings = []
     for _ in range(num_samples):
         matching = sample_random_matching_k2(all_edges, conflicts, vertex_to_edges, L)
-        if matching is not None and matching != planted_matching:
-            found_matchings.add(matching)
-            successes += 1
-    unique_found = len(found_matchings)
-    if unique_found == 0:
-        estimated_total = 0
-    else:
-        success_rate = successes / num_samples
-        estimated_total = max(unique_found, int(unique_found / success_rate)) if success_rate > 0 else unique_found
-    return estimated_total, planted, noise, found_matchings
+        if matching is not None:
+            sampled_matchings.append(matching)
 
-def analyze_matchings_vs_d_k2(n=10, d_values=None, num_samples=10000, num_trials=100):
+    # Estimate total using duplicates
+    unique_matchings = set(sampled_matchings)
+    num_unique = len(unique_matchings)
+    success_rate = len(sampled_matchings) / num_samples if num_samples > 0 else 0
+    estimated_total = int(num_unique / success_rate) if success_rate > 0 else 0
+
+    return estimated_total, planted, noise, sampled_matchings
+
+def analyze_matchings_vs_d_k2(n=10, d_values=None, num_samples=50000, num_trials=500):
     if d_values is None:
         d_values = [0.2, 0.5, 0.75, 0.9, 1, 1.5, 2, 3]
     results = []
@@ -77,14 +77,14 @@ def analyze_matchings_vs_d_k2(n=10, d_values=None, num_samples=10000, num_trials
     print(f"{'d':<5} {'Avg':<12} {'Std':<12} {'Min':<8} {'Max':<8}")
     print("-" * 50)
     for d in d_values:
-        matching_counts = []
+        counts = []
         for _ in range(num_trials):
             count, _, _, _ = monte_carlo_count_matchings_k2(n, d, num_samples)
-            matching_counts.append(count)
-        avg_count = np.mean(matching_counts)
-        std_count = np.std(matching_counts)
-        min_count = np.min(matching_counts)
-        max_count = np.max(matching_counts)
+            counts.append(count)
+        avg_count = np.mean(counts)
+        std_count = np.std(counts)
+        min_count = np.min(counts)
+        max_count = np.max(counts)
         results.append((d, avg_count, std_count, min_count, max_count))
         print(f"{d:<5.1f} {avg_count:<12.1f} {std_count:<12.1f} {min_count:<8d} {max_count:<8d}")
     return results
@@ -96,8 +96,8 @@ def plot_results(results):
     plt.figure(figsize=(10, 6))
     plt.errorbar(d_vals, avg_counts, yerr=std_devs, marker='o', capsize=5)
     plt.xlabel('d (noise parameter)')
-    plt.ylabel('Average number of alternative perfect matchings')
-    plt.title('Alternative Perfect Matchings vs Noise Parameter d (k=2)')
+    plt.ylabel('Average number of perfect matchings')
+    plt.title('Perfect Matchings vs Noise Parameter d (k=2)')
     plt.grid(True, alpha=0.3)
     plt.yscale('log')
     plt.show()
