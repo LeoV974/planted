@@ -1,0 +1,2 @@
+Upload: scp -r ~/OneDrive/Desktop/planted_matchings/planted4.py lvillani@login.delta.ncsa.illinois.edu:~/planted
+Download: scp -r lvillani@login.delta.ncsa.illinois.edu:~/planted/results_k3.json ~/OneDrive/Desktop/planted_matchings/
